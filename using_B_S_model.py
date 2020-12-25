@@ -7,6 +7,14 @@ init_printing()
 
 
 def black_scholes(S, X, T, r, sig, option):
+
+    # S is the spot price of the asset
+    # T is the maturity of the option
+    # K is the strike prive of the asset
+    # r is the interest rate (assume constant)
+    # sig is the volatility (standard deviation of asset returns)
+
+
     d1 = (np.log(S/X) + (r + ((sig**2)/2))*T)/(sig * (T**(1/2)))
     d2 = (np.log(S/X) + (r - ((sig**2)/2))*T)/(sig * (T**(1/2)))
     res = 0
@@ -17,6 +25,8 @@ def black_scholes(S, X, T, r, sig, option):
     return res
 
 def N(d):
-    return si.norm.cdf(d, 0.0, 1.0)
+
     # return cumulative normal distribution for the standard normal distribution
     # probability that the number is <= d
+
+    return si.norm.cdf(d, 0.0, 1.0)
