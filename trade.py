@@ -1,13 +1,8 @@
-import requests, json
 import threading
 import time
-import datetime
 import alpaca_trade_api as tradeapi
 from config import *
 
-API_KEY = "PK8FF6XY34ZGG0R22M21"
-API_SECRET = "2coaEyS1HpkMDoUf76wVWHdgOpBVpyBiyvkkz6BU"
-APCA_API_BASE_URL = "https://paper-api.alpaca.markets"
 
 class LongShort:
     def __init__(self):
@@ -46,6 +41,7 @@ class LongShort:
         print("Market opened.")
 
         # Rebalance the portfolio every minute making necessary trades
+        # Rebalance a portfolio: periodically buying/selling assets to maintain level of asset allocation
         while True:
             #Figure out when market will close to prepare to sell beforehand
             clock = self.alpaca.get_clock()
@@ -56,15 +52,26 @@ class LongShort:
                 print("Market closing soon. Closing positions")
                 positions = self.alpaca.list_positions()
                 for position in positions:
+                    # if there are open positions, if long -> sell, if short -> buy
                     if position.side == "long":
                         orderSide = 'sell'
                     else:
                         orderSide = "buy"
+                    # submit the order with the amount of shares that are either held or sold
                     qty = abs(int(float(position.qty)))
                     respSO = []
                     tSubmitOrder = threading.Thread(target = self.submitOrder(qty, position.symbol, orderSide, respSO))
                     tSubmitOrder.start()
                     tSubmitOrder.join()
+                # Run script again after market close for the next trading day.
+                print("Sleeping until market close (15 minutes).")
+                time.sleep(60*15)
+            else:
+                # Rebalance the portfolio
+                tRebalance = threading.Thread(target=self.rebalance)
+                tRebalance.start()
+                tRebalance.join()
+                time.sleep(60)
 
     def awaitMarketOpen(self):
         isOpen = self.alpaca.get_clock().is_open
@@ -74,6 +81,7 @@ class LongShort:
             print(str(timeToOpen) + " minutes until market opens.")
             time.sleep(60)
             isOpen = self.alpaca.get_clock().is_open
+
     def rebalance(self):
         tRerank = threading.Thread(target=self.rerank)
         tRerank.start()
@@ -91,6 +99,7 @@ class LongShort:
         positions = self.alpaca.list_positions()
         self.blacklist.clear()
         for position in positions:
+            # Iterate through positions. If it's long -> sell, if it's short -> buy
             if self.long.count(position.symbol) == 0:
                 # Position is not in the long list
                 if self.short.count(position.symbol) == 0:
@@ -114,7 +123,7 @@ class LongShort:
                         tSO.join()
                     else:
                         if abs(int(float(position.qty))) == self.qShort:
-                            # Position is where we want it. Pass for now.
+                            # Position quantity is equal to the quantity_short (therefore, position is where we want it). Pass for now
                             pass
                         else:
                             # Need to adjust position amount
@@ -141,7 +150,7 @@ class LongShort:
                     tSO.join()
                 else:
                     if int(float(position.qty)) == self.qLong:
-                        # Position is where we want it. Pass for now.
+                        # Long Position is where we want it. Pass for now.
                         pass
                     else:
                         # Need to adjust position amount.
@@ -165,6 +174,7 @@ class LongShort:
         tSendBOLong.start()
         tSendBOLong.join()
         respSendBOLong[0][0] += executed[0]
+
         if len(respSendBOLong[0][1]) > 0:
             # Handle rejected or incomplete orders and determined the new quantities to purchase
             respGetTPLong = []
@@ -230,7 +240,7 @@ class LongShort:
             else:
                 continue
         # Determine amount to long/short based on total stock price of each bucket
-        equity = int(float(self.alpaca.get_account(),equity))
+        equity = int(float(self.alpaca.get_account().equity))
         self.shortAmount = equity * 0.30
         self.longAmount = equity + self.shortAmount
 
@@ -271,7 +281,7 @@ class LongShort:
                 else:
                     executed.append(stock)
                 respSO.clear()
-        respSO.append([executed, incomplete])
+        resp.append([executed, incomplete])
 
     # Submit an order if quantity is above 0
     def submitOrder(self, qty, stock, side, resp):
